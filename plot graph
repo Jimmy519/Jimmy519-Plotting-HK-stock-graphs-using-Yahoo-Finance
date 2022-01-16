@@ -1,0 +1,147 @@
+#Web crawling
+
+import requests
+
+from bs4 import BeautifulSoup
+
+import pandas as pd
+
+
+
+#Plot graph
+
+import mplfinance as mpf
+
+import matplotlib.pyplot as plt
+
+# import matplotlib.dates as mdates
+
+
+
+#Install Chinese characters
+
+#https://pyecontech.com/2020/03/27/python_matplotlib_chinese/
+
+#https://blog.csdn.net/Wilburzzz/article/details/109667926
+
+plt.rcParams['font.sans-serif'] = ['Noto Serif TC']
+
+plt.rcParams['axes.unicode_minus'] = False
+
+s = mpf.make_mpf_style(base_mpf_style='yahoo',rc = {"font.family":'Noto Serif TC'})
+
+
+
+def getStockName(soup):
+
+StockName = soup.find(class_="D(ib) Fz(18px)")
+
+return (StockName.text.split(' (')[0])
+
+
+
+def getData(r):
+
+stockTable = pd.read_html(r.text)
+
+
+
+#Create DataFrame
+
+df = pd.DataFrame(stockTable[0])
+
+df = df.iloc[:-1][::-1]
+
+
+
+def changeDateFormat(date):
+
+date = date.str.replace('[年月]',"-",regex=True)
+
+date = list(map(lambda x:x[:-1],date))
+
+return pd.to_datetime(date)
+
+
+
+df['日期'] = changeDateFormat(df['日期'])
+
+df.set_index("日期",inplace=True)
+
+
+
+df.rename({"開市":"Open","最高":"High","最低":"Low","收市*":"Close","成交量":"Volume"},axis="columns",inplace=True)
+
+
+
+#Check if all data is number
+
+df = df.loc[df["Volume"].str.isnumeric()]
+
+
+
+#Change data to float as required in mplfinance
+
+df=df.astype(float)
+
+
+
+# df.head()
+
+
+
+return df
+
+
+
+def plotGraph(df,soup):
+
+mpf.plot(df, type="candle", mav=(5,10,20,60,120), ylabel="price",figsize=(12,4), title=getStockName(soup),style=s)
+
+
+
+def getStock(stockNum):
+
+headers = {
+
+"User-Agent" : "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:95.0) Gecko/20100101 Firefox/95.0",
+
+"Referer": "http://hk.finance.yahoo.com/"
+
+}
+
+
+
+url = "https://hk.finance.yahoo.com/quote/{0}.HK/history?period1=1609459200&period2=1642204800&interval=1d&filter=history&frequency=1d&includeAdjustedClose=true".format(stockNum)
+
+# print(url)
+
+
+
+r = requests.get(url,headers=headers)
+
+soup = BeautifulSoup(r.text)
+
+
+
+plotGraph(getData(r),soup)
+
+
+
+stockClass = {
+
+'Tech':[2269,"0700",9988,3690],
+
+'Finance':[2318,"0005"],
+
+"Health":[1093,1177],
+
+}
+
+
+
+stockList = stockClass["Tech"]
+
+for stock in stockList:
+
+getStock(stock)
